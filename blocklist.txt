@@ -1,0 +1,100 @@
+# One word or phrase per line. Questions containing any of these
+# are still answered, but never shown in the rotation.
+# Changes apply within a second; no restart needed.
+# Matching is case-insensitive and whole-word only ("ass" will not match "class").
+
+# profanity
+fuck
+fucking
+fucker
+motherfucker
+shit
+shitty
+bullshit
+bitch
+bastard
+asshole
+ass
+dick
+cock
+pussy
+cunt
+twat
+prick
+wanker
+slut
+whore
+douche
+douchebag
+piss
+crap
+damn
+
+# sexual
+sex
+sexy
+porn
+porno
+nude
+nudes
+naked
+horny
+boobs
+tits
+penis
+vagina
+blowjob
+handjob
+orgasm
+masturbate
+masturbation
+cum
+dildo
+rape
+rapist
+molest
+
+# slurs
+nigger
+nigga
+faggot
+fag
+dyke
+tranny
+retard
+retarded
+spic
+chink
+gook
+kike
+paki
+coon
+
+# violence / self-harm
+kill myself
+kill yourself
+suicide
+suicidal
+commit suicide
+self harm
+cut myself
+hang myself
+kill them all
+shoot up
+school shooting
+bomb threat
+
+# drugs
+cocaine
+heroin
+meth
+crack cocaine
+
+# hate / extremism
+nazi
+heil hitler
+white power
+kkk
+isis
+
+# add names or anything else you want hidden below

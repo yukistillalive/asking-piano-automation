@@ -1,0 +1,16 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# macOS / editors
+.DS_Store
+.Rhistory
+.vscode/
+.idea/
+
+# Runtime-generated user questions
+data/questions.json
+
+# Local env / secrets
+.env

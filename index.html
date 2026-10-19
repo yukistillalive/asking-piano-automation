@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PianoAutomata</title>
+<style>
+  html, body {
+    margin: 0; height: 100%;
+    background: #000; color: #f2f2f2;
+    cursor: none; overflow: hidden;
+  }
+  #stage {
+    height: 100%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  #line {
+    max-width: 80vw;
+    font-family: "Courier New", Courier, monospace;
+    font-size: clamp(22px, 3.2vw, 52px);
+    letter-spacing: 0.04em;
+    text-align: center;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+  }
+  #cursor { display: none; animation: blink 1s steps(1) infinite; }
+  body.input #cursor { display: inline; }
+  @keyframes blink { 50% { opacity: 0; } }
+
+  /* Real text field, kept off-screen so typing, IME (Japanese/Chinese),
+     å/ä/ö and paste all work. The visible text mirrors it. */
+  #in {
+    position: fixed; left: -9999px; top: 0;
+    width: 1px; height: 1px; opacity: 0;
+  }
+
+  #dot {
+    position: fixed; top: 18px; right: 18px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #5b5fe0; opacity: 0.35;
+    transition: opacity 0.4s;
+  }
+  #dot.thinking, #dot.playing { opacity: 1; animation: pulse 1.2s ease-in-out infinite; }
+  #dot.offline { background: #c0392b; opacity: 1; }
+  @keyframes pulse { 50% { opacity: 0.25; } }
+</style>
+</head>
+<body>
+<input id="in" maxlength="140" autocomplete="off" autocorrect="off"
+       autocapitalize="off" spellcheck="false" aria-label="Ask the oracle a question">
+<div id="dot"></div>
+<div id="stage"><div id="line"><span id="text"></span><span id="cursor">▌</span></div></div>
+
+<script>
+// ── timing (ms) — tune to taste ───────────────
+const TYPE_MS = 70;            // per character, typing out
+const ERASE_MS = 30;           // per character, erasing
+const HOLD_MS = 4000;          // how long a rotating question stays
+const GAP_MS = 900;            // blank pause between questions
+const AFTER_ANSWER_MS = 6000;  // keep the asked question up after playing ends
+const INPUT_IDLE_MS = 30000;   // abandon half-typed input after this long
+const RECENT_POOL = 25;        // newest questions shown more often...
+const RECENT_SHARE = 0.6;      // ...this share of the time
+
+const textEl = document.getElementById("text");
+const dot = document.getElementById("dot");
+const input = document.getElementById("in");
+
+let status = "idle";
+let connected = true;
+let questions = [];
+let mode = "rotate";   // "rotate" | "input" | "show"
+let runId = 0;         // bumping this cancels any running animation
+let inputTimer = null;
+let sending = false;
+const recentlyShown = [];
+
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+async function wait(ms, id) { await sleep(ms); return id === runId; }
+
+function setMode(m) {
+  mode = m;
+  document.body.className = m;
+}
+
+async function typeOut(s, id) {
+  const chars = Array.from(s);   // keeps emoji / surrogate pairs whole
+  for (let i = 1; i <= chars.length; i++) {
+    if (id !== runId) return false;
+    textEl.textContent = chars.slice(0, i).join("");
+    await sleep(TYPE_MS);
+  }
+  return id === runId;
+}
+
+async function erase(id) {
+  let chars = Array.from(textEl.textContent);
+  while (chars.length) {
+    if (id !== runId) return false;
+    chars.pop();
+    textEl.textContent = chars.join("");
+    await sleep(ERASE_MS);
+  }
+  return id === runId;
+}
+
+// Mostly recent questions, sometimes older ones, never the same few in a row.
+function pickQuestion() {
+  if (!questions.length) return null;
+  const pool = Math.random() < RECENT_SHARE ? questions.slice(-RECENT_POOL) : questions;
+  let q;
+  for (let tries = 0; tries < 8; tries++) {
+    q = pool[Math.floor(Math.random() * pool.length)];
+    if (!recentlyShown.includes(q)) break;
+  }
+  recentlyShown.push(q);
+  while (recentlyShown.length > Math.min(8, Math.floor(questions.length / 2))) recentlyShown.shift();
+  return q;
+}
+
+async function rotate() {
+  const id = ++runId;
+  setMode("rotate");
+  input.value = "";
+  if (textEl.textContent && !(await erase(id))) return;
+  while (id === runId) {
+    const q = pickQuestion();
+    if (!q) { if (!(await wait(1000, id))) return; continue; }
+    if (!(await typeOut(q, id))) return;
+    if (!(await wait(HOLD_MS, id))) return;
+    if (!(await erase(id))) return;
+    if (!(await wait(GAP_MS, id))) return;
+  }
+}
+
+async function showQuestion(q) {
+  const id = ++runId;
+  setMode("show");
+  input.value = "";
+  if (!q || textEl.textContent === q) return;
+  textEl.textContent = "";
+  await typeOut(q, id);
+}
+
+// ── typing ────────────────────────────────────
+function keepFocus() {
+  if (document.activeElement !== input) input.focus({ preventScroll: true });
+}
+input.addEventListener("blur", () => setTimeout(keepFocus, 0));
+document.addEventListener("click", keepFocus);
+window.addEventListener("load", keepFocus);
+
+function resetInputTimer() {
+  clearTimeout(inputTimer);
+  inputTimer = setTimeout(() => { if (mode === "input") rotate(); }, INPUT_IDLE_MS);
+}
+
+input.addEventListener("input", () => {
+  if (status !== "idle" || !connected) { input.value = ""; return; }
+  if (mode !== "input") {
+    if (!input.value) return;
+    runId++;
+    setMode("input");
+  }
+  textEl.textContent = input.value;
+  resetInputTimer();
+});
+
+input.addEventListener("keydown", async e => {
+  if (e.isComposing || e.keyCode === 229) return;   // IME still composing
+  if (e.key === "Escape") {
+    if (mode === "input") rotate();
+    return;
+  }
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  const q = input.value.replace(/\s+/g, " ").trim();
+  if (!q || mode !== "input" || status !== "idle" || sending) return;
+
+  sending = true;
+  let ok = false;
+  try { ok = (await fetch("/ask", { method: "POST", body: q })).ok; } catch {}
+  sending = false;
+  if (!ok) return;
+
+  clearTimeout(inputTimer);
+  runId++;
+  setMode("show");
+  input.value = "";
+  textEl.textContent = q;
+  status = "thinking";
+  dot.className = "thinking";
+});
+
+document.addEventListener("dblclick", () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+});
+
+// ── poll the bridge ───────────────────────────
+async function poll() {
+  try {
+    const s = await (await fetch("/state")).json();
+    questions = s.questions;
+    connected = s.connected;
+    const prev = status;
+    status = s.status;
+    dot.className = connected ? status : "offline";
+
+    if (status !== "idle" && mode !== "show") showQuestion(s.current);
+
+    if (prev !== "idle" && status === "idle" && mode === "show") {
+      const id = runId;
+      setTimeout(() => { if (id === runId && mode === "show") rotate(); }, AFTER_ANSWER_MS);
+    }
+  } catch {
+    connected = false;
+    dot.className = "offline";
+  }
+}
+
+setInterval(poll, 500);
+poll();
+rotate();
+</script>
+</body>
+</html>
