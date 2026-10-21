@@ -24,12 +24,11 @@
 // Wi-Fi networks, best signal wins. Add the venue network if it has a
 // normal password (eduroam / WPA2-Enterprise will NOT work with this code).
 const char* WIFI_NETWORKS[][2] = {
-  {"yukiphone", "20040301"},
   // {"VENUE_WIFI", "VENUE_PASSWORD"},
 };
 
-const char* API_KEY = "AQ.Ab8RN6JQMLI9v98SpeOxi-AOmYtM4mUFujZi3P3cKjmN97X70w";
-const char* MODEL   = "gemini-3.5-flash-lite";
+const char* API_KEY = GEMINI_API_KEY;
+const char* MODEL   = GEMINI_MODEL;
 
 // Solenoid GPIOs, in physical order along the row.
 const int SOLENOID_PINS[] = {13, 14, 16, 17, 18};
@@ -228,6 +227,10 @@ int askGemini(const String& question, String& outText) {
     req["contents"][0]["parts"][0]["text"] = userText;
     req["generationConfig"]["responseMimeType"] = "application/json";
     req["generationConfig"]["temperature"] = 1.0;
+    req["generationConfig"]["maxOutputTokens"] = 2048;
+    // Gemini 3.x models "think" before answering, which can cost 20+ s.
+    // For 2.5 models use ["thinkingBudget"] = 0 instead.
+    req["generationConfig"]["thinkingConfig"]["thinkingLevel"] = "minimal";
     serializeJson(req, body);
   }
 
